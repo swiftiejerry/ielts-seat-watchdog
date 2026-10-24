@@ -1,0 +1,36 @@
+# ielts-seat-watchdog 配置模板
+# 复制为 config.yml 后再启动：cp config.example.yml config.yml
+# 日常调整无需手改本文件——启动后打开 Web 面板点选即可（保存即热加载）。
+
+neea:
+  user_id: ""          # NEEA 登录账号（邮箱或 NEEA 号）；留空则不自动重登
+  password: ""         # NEEA 登录密码；仅在本机容器内存中使用，不写日志、不进推送
+
+monitor:
+  enabled: true
+  product_code: "IELTSCDI"   # 机考 IELTSCDI / 纸笔 IELTSPBT（中国大陆目前仅机考）
+  cities: ["440300"]         # 城市代码（面板可点选）；示例 440300=深圳 440100=广州
+  dates: []                  # 具体考位日期 YYYY-MM-DD；推荐用面板的 7/14/30 天按钮生成
+  date_range:
+    start: ""
+    end: ""
+  center_keywords: []        # 考点关键字过滤（如 "深圳大学"）；空 = 全部考点
+  session_keywords: []       # 场次过滤（如 "09:00" "14:00"）；空 = 全部场次
+  interval_seconds: 60       # 轮询间隔（秒），面板强制下限 30
+  jitter_seconds: 30         # 随机抖动（秒），模拟人工节奏
+  night_pause:
+    enabled: true
+    from: "01:00"
+    to: "07:00"
+    interval_seconds: 600    # 夜间降频轮询间隔
+
+push:
+  provider: "pushplus"       # pushplus | serverchan | bark | wecom-hook | dingtalk | feishu | custom
+  token: ""                  # 对应通道的 Token / SendKey / Webhook Key
+  heartbeat_time: "09:00"    # 每日心跳推送，确认系统存活
+
+ocr:
+  url: "http://ielts-ocr:9898"   # 容器间内网地址，一般不改
+
+scan:
+  request_days: 0            # >0 时按 N 天为步长扫描未来 90 天真实考期（面板"扫描真实考期"）

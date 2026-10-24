@@ -1,0 +1,8 @@
+venv/
+__pycache__/
+*.pyc
+*.user.js
+*.bat
+README.md
+captcha_img_ocr/
+captcha_record.txt

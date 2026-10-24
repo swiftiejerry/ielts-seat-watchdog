@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>IELTS 考位监控</title>
+<style>
+:root{
+  --bg:#f4f6fb; --card:#ffffff; --line:#e8ecf3;
+  --tx:#17203a; --tx2:#6b7280; --tx3:#9aa3b5;
+  --pri:#4f46e5; --pri-soft:#eef0ff; --grn:#10b981; --grn-soft:#e7f8f1;
+  --amb:#f59e0b; --red:#ef4444;
+  --r:16px; --shadow:0 1px 3px rgba(23,32,58,.06),0 8px 24px rgba(23,32,58,.05);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  background:var(--bg);color:var(--tx);font-size:15px;line-height:1.55;min-height:100vh}
+header{position:sticky;top:0;z-index:10;background:rgba(244,246,251,.85);backdrop-filter:blur(12px);
+  display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--line)}
+.brand{font-weight:700;font-size:17px;letter-spacing:.2px}
+.brand small{color:var(--tx3);font-weight:400;margin-left:6px;font-size:12px}
+.pill{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--tx2);
+  background:var(--card);border:1px solid var(--line);padding:6px 13px;border-radius:99px}
+.dot{width:9px;height:9px;border-radius:50%;background:#c3c9d6;flex:none}
+.dot.on{background:var(--grn);animation:pulse 1.8s infinite}
+.dot.warn{background:var(--amb)} .dot.err{background:var(--red)}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(16,185,129,.45)}70%{box-shadow:0 0 0 7px rgba(16,185,129,0)}100%{box-shadow:0 0 0 0 rgba(16,185,129,0)}}
+main{max-width:540px;margin:0 auto;padding:18px 16px 90px}
+.card{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);padding:20px;margin-bottom:14px}
+h2{font-size:15px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+h2::before{content:"";width:4px;height:15px;border-radius:2px;background:var(--pri)}
+.field{margin-bottom:16px} .field:last-child{margin-bottom:0}
+label{display:block;font-size:13px;font-weight:600;color:var(--tx2);margin-bottom:7px}
+input[type=text],input[type=password],select{width:100%;border:1.5px solid var(--line);border-radius:11px;
+  padding:11px 13px;font-size:15px;font-family:inherit;background:#fbfcfe;color:var(--tx);outline:none;transition:border .15s}
+input:focus,select:focus{border-color:var(--pri);background:#fff}
+.hint{font-size:12.5px;color:var(--tx3);margin-top:7px;line-height:1.5}
+.btn{display:block;width:100%;border:none;border-radius:12px;padding:13px;font-size:15px;font-weight:600;
+  font-family:inherit;background:var(--pri);color:#fff;cursor:pointer;transition:transform .08s,opacity .15s}
+.btn:active{transform:scale(.98)} .btn:disabled{opacity:.5}
+.btn.ghost{background:var(--pri-soft);color:var(--pri)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1.5px solid var(--line);background:#fbfcfe;color:var(--tx2);border-radius:99px;
+  padding:7px 14px;font-size:13.5px;font-weight:500;cursor:pointer;user-select:none;transition:all .12s;
+  display:inline-flex;align-items:center;gap:6px}
+.chip.on{background:var(--pri);border-color:var(--pri);color:#fff;font-weight:600}
+.chip .ok{display:none;font-size:11px} .chip.on .ok{display:inline}
+.chip.cand{border-style:dashed;color:var(--tx2)}
+.chip.hasdate::after{content:"有考期";font-size:10px;background:var(--grn-soft);color:var(--grn);
+  padding:1.5px 6px;border-radius:99px;font-weight:700}
+.chip.on.hasdate::after{background:rgba(255,255,255,.25);color:#fff}
+.btn-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.chipbtn{border:1.5px solid var(--line);background:#fbfcfe;border-radius:99px;padding:7px 14px;
+  font-size:13px;font-weight:500;color:var(--tx2);cursor:pointer;font-family:inherit}
+.chipbtn.primary{background:var(--pri-soft);border-color:var(--pri);color:var(--pri);font-weight:600}
+.chipbtn:disabled{opacity:.5}
+.seg{display:flex;background:#f0f2f8;border-radius:11px;padding:3px;gap:3px}
+.seg button{flex:1;border:none;background:transparent;border-radius:9px;padding:9px;font-size:14px;
+  font-weight:600;color:var(--tx2);cursor:pointer;font-family:inherit;transition:all .15s}
+.seg button.on{background:#fff;color:var(--pri);box-shadow:0 1px 4px rgba(23,32,58,.1)}
+.statgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+.stat{background:#f8f9fd;border-radius:12px;padding:12px 14px}
+.stat .k{font-size:12px;color:var(--tx3);font-weight:500;margin-bottom:2px}
+.stat .v{font-size:16px;font-weight:700}
+.stat .v.small{font-size:13.5px}
+.switchrow{display:flex;align-items:center;justify-content:space-between;background:#f8f9fd;
+  border-radius:12px;padding:13px 14px;margin-bottom:12px}
+.switchrow .t{font-weight:600;font-size:14.5px}
+.switchrow .d{font-size:12px;color:var(--tx3)}
+.sw{position:relative;width:50px;height:29px;flex:none;cursor:pointer}
+.sw input{opacity:0;width:0;height:0}
+.sw i{position:absolute;inset:0;background:#d6dae6;border-radius:99px;transition:.2s}
+.sw i::after{content:"";position:absolute;width:23px;height:23px;border-radius:50%;background:#fff;
+  top:3px;left:3px;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.sw input:checked+i{background:var(--grn)} .sw input:checked+i::after{left:24px}
+.found{display:flex;align-items:center;gap:10px;padding:11px 4px;border-bottom:1px solid #f1f3f8}
+.found:last-child{border:none} .found .dt{font-weight:700;font-size:14px;min-width:64px}
+.found .tm{font-size:12px;color:var(--pri);font-weight:600;background:var(--pri-soft);
+  border-radius:7px;padding:2px 7px;flex:none}
+.found .cn{font-size:13.5px;color:var(--tx2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.found .ago{font-size:11.5px;color:var(--tx3);flex:none}
+.empty{color:var(--tx3);font-size:13.5px;text-align:center;padding:18px 0}
+.bar{height:7px;background:#eef0f6;border-radius:99px;overflow:hidden;flex:1}
+.bar i{display:block;height:100%;background:var(--pri);border-radius:99px;transition:width .4s;width:0}
+.scanrow{display:flex;align-items:center;gap:10px;margin-bottom:10px;font-size:12.5px;color:var(--tx2)}
+pre#logs{background:#1e2433;color:#c9d4ea;font-size:11.5px;line-height:1.7;border-radius:12px;
+  padding:14px;overflow:auto;max-height:260px;font-family:ui-monospace,Consolas,monospace}
+.fold{cursor:pointer;user-select:none} .fold .arr{transition:transform .2s;display:inline-block;color:var(--tx3)}
+.fold.open .arr{transform:rotate(180deg)}
+#toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%) translateY(20px);
+  background:rgba(23,32,58,.92);color:#fff;font-size:13.5px;padding:11px 20px;border-radius:99px;
+  opacity:0;pointer-events:none;transition:all .25s;z-index:99;max-width:86vw;text-align:center}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.good{background:rgba(16,128,90,.95)} #toast.bad{background:rgba(200,50,50,.95)}
+.guide{background:linear-gradient(135deg,#eef0ff,#f6f0ff);border:1px solid #dfe3ff;border-radius:12px;
+  padding:13px 15px;font-size:13px;color:#4a4470;margin-bottom:14px;line-height:1.7}
+.guide b{color:var(--pri)}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">IELTS 考位监控<small>NEEA · 机考</small></div>
+  <div class="pill"><span class="dot" id="dot"></span><span id="modeText">加载中</span></div>
+</header>
+<main>
+  <div class="guide" id="guide" hidden></div>
+
+  <section class="card">
+    <div class="statgrid">
+      <div class="stat"><div class="k">数据源（浏览器）</div><div class="v" id="workerState">—</div></div>
+      <div class="stat"><div class="k">下次查询</div><div class="v" id="nextPoll">—</div></div>
+      <div class="stat"><div class="k">监控日期</div><div class="v" id="datesCount">—</div></div>
+      <div class="stat"><div class="k">已推送考位</div><div class="v" id="seatsCount">—</div></div>
+    </div>
+    <div class="switchrow">
+      <div><div class="t">监控运行</div><div class="d" id="swDesc">关闭后完全停止查询</div></div>
+      <label class="sw"><input type="checkbox" id="swEnabled"><i></i></label>
+    </div>
+    <button class="btn ghost" id="pollNow">立即查询一次</button>
+  </section>
+
+  <section class="card">
+    <h2>NEEA 账号</h2>
+    <div class="field"><label>NEEA ID</label>
+      <input type="text" id="userId" placeholder="登录 ielts.neea.cn 用的账号" autocomplete="off"></div>
+    <div class="field"><label>密码 <span id="pwdState" style="font-weight:400;color:var(--grn)"></span></label>
+      <input type="password" id="password" placeholder="留空 = 保持已保存的密码"></div>
+    <p class="hint">密码只在本机容器内加密后提交给 NEEA，不会明文发送、不会上传任何地方。</p>
+    <div style="margin-top:12px"><button class="btn" id="saveAccount">保存账号</button></div>
+  </section>
+
+  <section class="card">
+    <h2>监控条件</h2>
+    <div class="field"><label>考试类型</label>
+      <div class="seg" id="segProduct">
+        <button data-v="IELTSCDI" class="on">机考</button>
+        <button data-v="IELTSPBT">纸笔</button>
+      </div>
+      <p class="hint">大陆已取消纸笔考试，保持「机考」即可。</p></div>
+    <div class="field"><label>城市（可多选）</label>
+      <input type="text" id="citySearch" placeholder="搜索城市…" style="margin-bottom:9px">
+      <div class="chips" id="cityChips"></div></div>
+    <div class="field"><label>监控日期</label>
+      <div class="btn-row">
+        <button class="chipbtn" data-days="7">未来7天</button>
+        <button class="chipbtn" data-days="14">未来14天</button>
+        <button class="chipbtn" data-days="30">未来30天</button>
+        <button class="chipbtn primary" id="scanBtn">扫描真实考期</button>
+      </div>
+      <div class="scanrow" id="scanRow" hidden>
+        <div class="bar"><i id="scanBar"></i></div><span id="scanText"></span>
+      </div>
+      <div class="chips" id="dateChips"></div>
+      <p class="hint">「扫描真实考期」会查询未来 90 天里真正有考试安排的日期（带「有考期」标记），点选你要盯的日子；再点一次取消。不扫描也可以直接用快捷按钮。</p></div>
+    <div class="field"><label>场次（不选 = 全部）</label>
+      <div class="chips" id="sessionChips"></div>
+      <p class="hint" id="sessionHint">扫描或查询一次后，这里会显示该城市的真实场次。</p></div>
+    <div class="field"><label>考点（不选 = 全部）</label>
+      <div class="chips" id="centerChips"></div>
+      <p class="hint" id="centerHint">扫描或查询一次后，这里会显示该城市的真实考点。</p></div>
+    <div style="margin-top:14px"><button class="btn" id="saveMonitor">保存监控条件</button></div>
+  </section>
+
+  <section class="card">
+    <h2>微信推送</h2>
+    <div class="field"><label>推送通道</label>
+      <select id="pushProvider">
+        <option value="pushplus">PushPlus（微信 · 推荐）</option>
+        <option value="serverchan">Server酱（微信）</option>
+        <option value="wecom-hook">企业微信群机器人</option>
+        <option value="dingtalk">钉钉群机器人</option>
+        <option value="feishu">飞书群机器人</option>
+        <option value="bark">Bark（iPhone）</option>
+      </select></div>
+    <div class="field"><label>Token</label>
+      <input type="text" id="pushToken" placeholder="pushplus.plus 微信扫码登录后一键复制">
+      <p class="hint">手机或电脑打开 <b>www.pushplus.plus</b> → 微信扫码 → 复制 Token 粘贴到这里。消息会直接出现在微信里。</p></div>
+    <div class="field"><label>每日存活提醒</label>
+      <div class="seg" id="segHeartbeat">
+        <button data-v="" >关闭</button>
+        <button data-v="09:00" class="on">每天 09:00</button>
+      </div>
+      <p class="hint">每天一条心跳消息，确认监控活着；收不到就是挂了。</p></div>
+    <div style="margin-top:12px"><button class="btn" id="savePush">保存并测试推送</button></div>
+  </section>
+
+  <section class="card">
+    <h2>发现的考位</h2>
+    <div id="foundList"><div class="empty">还没有发现考位，别急。</div></div>
+  </section>
+
+  <section class="card">
+    <h2 class="fold" id="logsFold"><span class="arr">▾</span>&nbsp;运行日志</h2>
+    <pre id="logs" hidden></pre>
+  </section>
+</main>
+<div id="toast"></div>
+
+<script>
+const CITY_MAP = __CITY_MAP_JSON__;
+const WEEK = ["日","一","二","三","四","五","六"];
+const S = {
+  cities: [], dates: new Set(), session: new Set(), centers: new Set(),
+  product: "IELTSCDI", heartbeat: "09:00",
+  scanDates: new Set(), knownTimes: [], knownCenters: [], cfg: null, logOpen: false,
+};
+
+const $ = id => document.getElementById(id);
+function toast(msg, cls=""){ const t=$("toast"); t.textContent=msg; t.className="show "+cls;
+  clearTimeout(t._h); t._h=setTimeout(()=>t.className="",2600); }
+async function api(path, body){
+  const opt = body ? {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)} : {};
+  const r = await fetch(path, opt);
+  const j = await r.json().catch(()=>({}));
+  if(!r.ok || j.ok===false) throw new Error(j.error || ("HTTP "+r.status));
+  return j;
+}
+function fmtDate(d){ const [y,m,dd]=d.split("-"); return `${+m}月${+dd}日 周${WEEK[new Date(d).getDay()]}`; }
+function ago(iso){ if(!iso) return "";
+  const s=(Date.now()-new Date(iso))/1000;
+  if(s<60) return "刚刚"; if(s<3600) return Math.floor(s/60)+"分钟前";
+  if(s<86400) return Math.floor(s/3600)+"小时前"; return Math.floor(s/86400)+"天前"; }
+
+/* ---------- 渲染 ---------- */
+function renderCities(){
+  const q = $("citySearch").value.trim();
+  const box = $("cityChips"); box.innerHTML = "";
+  Object.entries(CITY_MAP)
+    .filter(([,n]) => !q || n.includes(q))
+    .forEach(([code,name])=>{
+      const el = document.createElement("span");
+      el.className = "chip" + (S.cities.includes(code) ? " on" : "");
+      el.innerHTML = `${name}<span class="ok">✓</span>`;
+      el.onclick = ()=>{ S.cities.includes(code) ? S.cities=S.cities.filter(c=>c!==code) : S.cities.push(code); renderCities(); };
+      box.appendChild(el);
+    });
+}
+function renderDates(){
+  const box = $("dateChips"); box.innerHTML = "";
+  const all = [...new Set([...S.dates, ...S.scanDates])].sort();
+  if(!all.length){ box.innerHTML = '<span class="empty">还没有选日期，用上面的快捷按钮或扫描</span>'; return; }
+  all.forEach(d=>{
+    const el = document.createElement("span");
+    const sel = S.dates.has(d), has = S.scanDates.has(d);
+    el.className = "chip" + (sel?" on":" cand") + (has?" hasdate":"");
+    el.innerHTML = `${fmtDate(d)}<span class="ok">✓</span>`;
+    el.onclick = ()=>{ sel ? S.dates.delete(d) : S.dates.add(d); renderDates(); };
+    box.appendChild(el);
+  });
+}
+function renderSessions(){
+  const box = $("sessionChips"); box.innerHTML = "";
+  // 真实场次（由数据源发现）优先；无数据时给时间预设
+  const presets = S.knownTimes.length ? S.knownTimes : ["09:00","14:00","上午","下午"];
+  presets.forEach(t=>{
+    const el = document.createElement("span");
+    el.className = "chip" + (S.session.has(t) ? " on" : "");
+    el.innerHTML = `${t}<span class="ok">✓</span>`;
+    el.onclick = ()=>{ S.session.has(t) ? S.session.delete(t) : S.session.add(t); renderSessions(); };
+    box.appendChild(el);
+  });
+  if(S.knownTimes.length) $("sessionHint").textContent = `该城市真实场次：${S.knownTimes.join(" / ")}，点选要盯的场次`;
+}
+function renderCenters(){
+  const box = $("centerChips"); box.innerHTML = "";
+  if(!S.knownCenters.length){
+    box.innerHTML = '<span class="empty">扫描或查询一次后会显示考点列表</span>'; return; }
+  S.knownCenters.forEach(c=>{
+    const el = document.createElement("span");
+    el.className = "chip" + (S.centers.has(c) ? " on" : "");
+    el.innerHTML = `${c}<span class="ok">✓</span>`;
+    el.onclick = ()=>{ S.centers.has(c) ? S.centers.delete(c) : S.centers.add(c); renderCenters(); };
+    box.appendChild(el);
+  });
+}
+const MODE_TEXT = {idle:"待配置", stopped:"已停止", monitoring:"监控中", paused:"熔断暂停",
+  credentials_error:"账号有误", worker_offline:"数据源离线"};
+function renderStatus(j){
+  const st = j.status;
+  $("dot").className = "dot" + (st.mode==="monitoring" ? " on" : (st.mode==="paused"||st.mode==="worker_offline") ? " warn" :
+    st.mode==="credentials_error" ? " err" : "");
+  $("modeText").textContent = MODE_TEXT[st.mode] || st.mode;
+  $("swEnabled").checked = !!(j.config.monitor.enabled);
+  // 数据源状态
+  if(st.worker_last_seen){
+    const age = Math.round((Date.now() - new Date(st.worker_last_seen))/1000);
+    $("workerState").textContent = st.worker_neea_ok === false ? "需重登(自动处理中)" :
+      age < 120 ? `在线 · ${age}秒前` : `${Math.floor(age/60)}分钟前`;
+    $("workerState").style.color = (age < 120 && st.worker_neea_ok !== false) ? "var(--grn)" : "var(--amb)";
+  } else {
+    $("workerState").textContent = "离线";
+    $("workerState").style.color = "var(--tx3)";
+  }
+  $("datesCount").textContent = j.effective_dates.length + " 天";
+  $("seatsCount").textContent = st.seats_pushed_total;
+  if(st.next_poll_at && st.mode==="monitoring" && !st.scan?.running){
+    const s = Math.round((new Date(st.next_poll_at) - Date.now())/1000);
+    $("nextPoll").textContent = s>0 ? (s>=90? Math.floor(s/60)+" 分 "+s%60+" 秒" : s+" 秒后") : "进行中…";
+  } else $("nextPoll").textContent = st.mode==="monitoring" ? "进行中…" : "—";
+
+  const sc = st.scan || {};
+  if(sc.running){
+    $("scanRow").hidden = false;
+    const pct = sc.total ? Math.round(sc.done*100/sc.total) : 0;
+    $("scanBar").style.width = pct+"%";
+    $("scanText").textContent = `正在扫描 ${sc.city} ${sc.done}/${sc.total}（约还需 ${Math.ceil((sc.total-sc.done)*0.4/60)} 分钟）`;
+    $("scanBtn").disabled = true;
+  } else { $("scanRow").hidden = true; $("scanBtn").disabled = false; }
+
+  const found = j.recent_found || [];
+  $("foundList").innerHTML = found.length ? found.map(f=>
+    `<div class="found"><span class="dt">${f.testDay.slice(5)}</span><span class="tm">${f.testTime||""}</span>
+     <span class="cn">${f.centerName||""}</span><span class="ago">${ago(f.found_at)}</span></div>`).join("")
+    : '<div class="empty">还没有发现考位，别急。</div>';
+
+  if(S.logOpen) $("logs").textContent = (j.logs||[]).slice(-60).join("\n");
+
+  const noAcct = !(j.config.neea.user_id && (j.config.neea.has_password));
+  const noWorker = !j.status.worker_last_seen;
+  $("guide").hidden = !noAcct && !noWorker;
+  if(noAcct) $("guide").innerHTML =
+    `<b>第一步：</b>下面填 NEEA 账号并保存（用于自动重登）。`;
+  else if(noWorker) $("guide").innerHTML =
+    `<b>还差一步：</b>用 Chrome 打开 <b>ielts.neea.cn</b> 并保持在个人中心页（装好油猴脚本 v2.2.6+）。这页就是监控的“眼睛”，关掉它监控就停。`;
+  else $("guide").hidden = true;
+
+  if((j.known_centers||[]).length && !S.knownCenters.length){ S.knownCenters = j.known_centers; renderCenters(); }
+  if((j.known_test_times||[]).length && !S.knownTimes.length){ S.knownTimes = j.known_test_times; renderSessions(); }
+  Object.values(j.scan_cache||{}).flat().forEach(d=>S.scanDates.add(d));
+}
+
+/* ---------- 事件 ---------- */
+$("citySearch").oninput = renderCities;
+document.querySelectorAll(".chipbtn[data-days]").forEach(b=>b.onclick = ()=>{
+  S.dates = new Set(); const n = +b.dataset.days;
+  const today = new Date();
+  for(let i=1;i<=n;i++){ const d = new Date(today); d.setDate(d.getDate()+i);
+    S.dates.add(d.toISOString().slice(0,10)); }
+  renderDates(); toast(`已选未来 ${n} 天，可点掉不要的`);
+});
+$("segProduct").querySelectorAll("button").forEach(b=>b.onclick = ()=>{
+  $("segProduct").querySelectorAll("button").forEach(x=>x.classList.remove("on"));
+  b.classList.add("on"); S.product = b.dataset.v;
+});
+$("segHeartbeat").querySelectorAll("button").forEach(b=>b.onclick = ()=>{
+  $("segHeartbeat").querySelectorAll("button").forEach(x=>x.classList.remove("on"));
+  b.classList.add("on"); S.heartbeat = b.dataset.v;
+});
+$("scanBtn").onclick = async ()=>{
+  try{ const j = await api("/api/scan-dates",{days:90});
+    toast(`开始扫描未来 ${j.days} 天，大约需要几分钟`,"good");
+  }catch(e){ toast(e.message,"bad"); }
+};
+$("saveAccount").onclick = async ()=>{
+  try{
+    await api("/api/config",{neea:{user_id:$("userId").value.trim(), password:$("password").value}});
+    $("password").value=""; toast("账号已保存，正在验证登录…","good"); refresh();
+  }catch(e){ toast(e.message,"bad"); }
+};
+$("saveMonitor").onclick = async ()=>{
+  if(!S.cities.length) return toast("至少选一个城市","bad");
+  try{
+    await api("/api/config",{monitor:{
+      product_code:S.product, cities:S.cities, dates:[...S.dates],
+      session_keywords:[...S.session], center_keywords:[...S.centers]}});
+    toast("监控条件已保存并生效","good");
+  }catch(e){ toast(e.message,"bad"); }
+};
+$("savePush").onclick = async ()=>{
+  try{
+    await api("/api/config",{push:{provider:$("pushProvider").value,
+      token:$("pushToken").value.trim(), heartbeat_time:S.heartbeat}});
+    await api("/api/test-push", {});
+    toast("测试消息已发出，看一眼微信！","good");
+  }catch(e){ toast(e.message,"bad"); }
+};
+$("swEnabled").onchange = async e=>{
+  try{ await api("/api/config",{monitor:{enabled:e.target.checked}});
+    toast(e.target.checked?"监控已启动":"监控已停止","good"); refresh();
+  }catch(err){ toast(err.message,"bad"); e.target.checked=!e.target.checked; }
+};
+$("pollNow").onclick = async ()=>{
+  try{ await api("/api/poll-now", {}); toast("已触发查询，稍候看结果","good"); }
+  catch(e){ toast(e.message,"bad"); }
+};
+$("logsFold").onclick = ()=>{
+  S.logOpen = !S.logOpen;
+  $("logsFold").classList.toggle("open", S.logOpen);
+  $("logs").hidden = !S.logOpen;
+  if(S.logOpen) refresh();
+};
+
+/* ---------- 初始化与轮询 ---------- */
+async function refresh(){
+  try{
+    const j = await api("/api/status");
+    const cfg = j.config;
+    if(!S.cfg){ // 首次加载填充本地状态
+      S.cfg = cfg;
+      S.cities = [...cfg.monitor.cities]; S.dates = new Set(cfg.monitor.dates||[]);
+      S.session = new Set(cfg.monitor.session_keywords||[]);
+      S.centers = new Set(cfg.monitor.center_keywords||[]);
+      S.product = cfg.monitor.product_code; S.heartbeat = cfg.push.heartbeat_time||"";
+      $("userId").value = cfg.neea.user_id||"";
+      $("pushProvider").value = cfg.push.provider; $("pushToken").value = cfg.push.token||"";
+      $("pwdState").textContent = cfg.neea.has_password ? "（已保存）" : "";
+      $("segProduct").querySelectorAll("button").forEach(b=>
+        b.classList.toggle("on", b.dataset.v===S.product));
+      $("segHeartbeat").querySelectorAll("button").forEach(b=>
+        b.classList.toggle("on", b.dataset.v===S.heartbeat));
+      renderCities(); renderDates();
+    }
+    renderStatus(j);
+  }catch(e){ console.error(e); }
+}
+renderDates(); renderSessions(); renderCenters();
+refresh();
+setInterval(refresh, 3000);
+</script>
+</body>
+</html>

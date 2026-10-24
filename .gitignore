@@ -1,0 +1,20 @@
+# 真实配置（含账号与推送 Token），永不入库
+config.yml
+
+# 运行时状态与调试残留
+*.log
+neea_state.json
+*_dump*.html
+captcha*/
+seen.json
+found.json
+scan_cache.json
+
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# 系统
+.DS_Store
+Thumbs.db
