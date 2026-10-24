@@ -1,6 +1,6 @@
 # IELTS Seat Watchdog
 
-Self-hosted seat monitor for NEEA IELTS (mainland China). Your own Chrome tab does the seat polling, a small Docker control plane filters, deduplicates and pushes to WeChat the moment a seat opens.
+Self-hosted seat monitor for NEEA IELTS (mainland China, ielts.neea.cn) — 雅思考位监控 · 考位提醒. Your own Chrome tab does the seat polling, a small Docker control plane filters, deduplicates and pushes to WeChat the moment a seat opens. Computer-delivered & paper-based, 34 cities, tap-to-configure.
 
 [中文说明](README.zh-CN.md)
 

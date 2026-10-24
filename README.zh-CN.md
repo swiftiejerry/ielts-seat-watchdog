@@ -1,6 +1,6 @@
-# IELTS Seat Watchdog（雅思考位守望者）
+# IELTS Seat Watchdog · 雅思考位监控（考位提醒）
 
-部署在自己电脑上的 NEAA 雅思考位监控：由你自己的 Chrome 标签页负责查询考位，一个小型 Docker 控制面负责筛选、去重，考位一放出立刻推送到微信。
+也叫「雅思考位守望者」。部署在自己电脑上的 NEEA 雅思考位监控 / 考位提醒工具：由你自己的 Chrome 标签页负责查询考位，一个小型 Docker 控制面负责筛选、去重，考位一放出立刻推送到微信。支持机考与纸笔考，全国 34 个城市、日期、考点全程点选配置，日常使用不改代码。
 
 [English](README.md)
 
@@ -99,6 +99,14 @@ MONITOR_CONFIG=/path/to/config.yml MONITOR_DATA=/path/to/data python monitor/iel
 | `push.heartbeat_time` | `09:00` | 每日存活心跳 |
 
 推送通道：`pushplus`、`serverchan`、`bark`、`wecom-hook`、`dingtalk`、`feishu`、`custom`（POST `{title, message}` JSON 到任意 URL，URL 直接填在 token 栏）。
+
+## 常见问题
+
+- **这是「抢考位」外挂吗？** 不是。只调用只读的考位查询接口，绝不自动报名或支付；巡查节奏随机且克制（默认 60s±30s，控制面强制下限 30s）。
+- **需要把账号密码交给第三方吗？** 不需要。所有组件都跑在自己电脑上，凭据不出本机，零云端、零第三方。
+- **考位提醒怎么发到微信？** 内置 pushplus、Server酱、Bark、企业微信、钉钉、飞书或任意自定义 HTTP 接口，面板里填 Token 即可；同一考位 24 小时内只推一次。
+- **支持纸笔考吗？** 支持。机考 `IELTSCDI`、纸笔考 `IELTSPBT`，面板里切换。
+- **和 ielts-auto-booking、ielts.cn_hkj 是什么关系？** 油猴脚本基于前者（MIT，见致谢）重构，并感谢后者的先行探索。差异在于：网页面板点选配置、多通道微信推送、24 小时去重、每日心跳、验证码自动重登，日常使用不用改脚本。
 
 ## 公平使用与风控说明
 
