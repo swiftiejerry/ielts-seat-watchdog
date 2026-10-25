@@ -37,6 +37,27 @@ ielts.neea.cn rejects every non-browser HTTP client (412), and even automation b
 
 The result: closed-source-grade "app" experience with zero cloud and zero third party seeing your credentials.
 
+## Second data source: IDP (optional module)
+
+If you also watch IDP seats, the repo ships a **fully separate** monitor ([`idp/`](idp/)). It is not a second copy of the same thing — it is a different system built for a different exam provider:
+
+| | NEEA (ielts.neea.cn) | IDP (sign.idpielts.cn) |
+|---|---|---|
+| Protection | RiverSecurity WAF, plain HTTP always 412 | none — plain HTTP returns 200 |
+| Login | required, plus a captcha | no login, no captcha |
+| Requests | per city × per date | one POST returns everything |
+| Response | plain JSON | SM4-CBC encrypted |
+| What you run | Chrome + userscript + OCR container | one Python container |
+
+Because IDP has no request-level authorization layer, this module **needs no browser** — a plain container suffices, and it was measured to sustain 4 req/s. "Available" is decided by `fullyBooked` **and** remaining capacity together: both conditions have measured backing, and either one alone produces false positives (see [`idp/README.md`](idp/README.md)).
+
+Note that IDP in mainland China currently offers computer-delivered tests only — no paper-based, no UKVI. For paper-based exams this route does not work.
+
+```bash
+cp idp/config.example.yml idp/config.yml   # then fill in center + push token
+docker compose up -d ielts-idp             # panel at http://127.0.0.1:9897
+```
+
 ## Features
 
 - **Tap-to-configure panel** — 34 cities, real exam dates discovered by a 90-day scan, sessions (09:00 / 14:00) and centers auto-populated from live responses. No YAML editing for daily use.
@@ -109,8 +130,9 @@ Push channels: `pushplus`, `serverchan`, `bark`, `wecom-hook`, `dingtalk`, `feis
 ## Tests
 
 ```bash
-python tests/test_offline.py   # 28 offline checks: seat parsing, date expansion,
-                               # night window, push builders, config merge
+python tests/test_offline.py         # 28 offline checks: seat parsing, date expansion,
+                                     # night window, push builders, config merge
+python -I idp/test_idp_offline.py    # 56 checks: IDP availability, dedupe, rolling window, config
 ```
 
 ## Project layout
@@ -120,7 +142,10 @@ userscript/ielts-seat-watchdog.user.js   eye — Tampermonkey worker script
 monitor/ielts_monitor.py                 brain — Flask control plane
 monitor/ui.html                          web panel (single file, no build step)
 ocr_server.py + Dockerfile               ddddocr captcha sidecar
-docker-compose.yml                       one command brings up all three
+idp/idp_monitor.py                       separate module — IDP seat monitor
+idp/ui.html                              IDP panel (three date modes)
+idp/test_idp_offline.py                  IDP offline tests
+docker-compose.yml                       one command brings up everything
 tests/test_offline.py                    offline unit checks
 config.example.yml                       seed config template
 ```

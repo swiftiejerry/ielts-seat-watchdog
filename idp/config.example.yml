@@ -1,0 +1,41 @@
+# IDP 侧配置（sign.idpielts.cn）。与 NEEA 的 config.yml 分开，
+# 因为两者是不同数据源、不同节奏、不同考点体系。
+
+enabled: true
+
+# 考点：IDP 目前在大陆只有机考，考点按城市分布。
+# center_id 从 /api/schedule 接口拿（面板会列出该考点真实考期），
+# 也可以用 curl 调 testCenterSearch 传 centerId 看返回哪些考点。
+center_id: ""           # 例：22090ffd-27cd-4945-09c8-71f67fa5bcaf
+center_name: ""         # 显示名，随意填
+
+# 日期模式：
+#   rolling = 自动盯未来 N 天，窗口跟着今天往前滚，不需要手动重选（推荐）
+#   all     = 盯该考点全部场次
+#   list    = 只盯 dates 里列的
+dates_mode: rolling
+rolling_days: 21        # 7~90
+
+# 仅 list 模式使用；rolling/all 模式下留空
+dates: []
+
+# 场次：按接口的 time 字段匹配（值为 09:00 AM / 14:00 PM）。
+# 注意 examTime 字段是另一种写法（02:00 PM），别混用。
+times:
+  - "14:00 PM"
+
+# 节奏。IDP 是先到先得即时扣位，没有 NEEA 那种 10:00/20:00 定时放位，
+# 所以不需要高峰窗口，恒定 30s 已足够（接口实测可承受 4 req/s）。
+interval_seconds: 30
+jitter_seconds: 10
+
+night_pause:
+  enabled: true
+  from: "01:00"
+  to: "07:00"
+  interval_seconds: 300
+
+push:
+  provider: pushplus    # pushplus / serverchan / bark / wecom-hook / feishu / custom
+  token: ""             # 填 pushplus token；留空则只记日志不推送
+  heartbeat_time: "09:00"

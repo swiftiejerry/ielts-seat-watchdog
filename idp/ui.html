@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>IDP 考位监控</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#181b22; --line:#262b36; --txt:#e6e9ef;
+    --dim:#8b93a7; --accent:#3b82f6; --ok:#22c55e; --warn:#f59e0b; --err:#ef4444;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+       font:14px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+  .wrap{max-width:900px;margin:0 auto;padding:24px 18px 60px}
+  h1{font-size:19px;margin:0 0 4px}
+  .sub{color:var(--dim);font-size:13px;margin-bottom:22px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;
+        padding:18px;margin-bottom:16px}
+  .card h2{font-size:14px;margin:0 0 14px;color:var(--dim);font-weight:600;
+           letter-spacing:.04em;text-transform:uppercase}
+  .row{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+  .row label{width:104px;flex:0 0 auto;color:var(--dim);font-size:13px}
+  input[type=text],input[type=number],input[type=time],select{
+    background:#0f1115;border:1px solid var(--line);color:var(--txt);
+    border-radius:6px;padding:7px 10px;font-size:13px;font-family:inherit}
+  input[type=text]{flex:1;min-width:200px}
+  input[type=number]{width:96px}
+  button{background:var(--accent);border:0;color:#fff;padding:8px 16px;
+         border-radius:6px;font-size:13px;cursor:pointer;font-family:inherit}
+  button.ghost{background:transparent;border:1px solid var(--line);color:var(--txt)}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  .chips{display:flex;flex-wrap:wrap;gap:7px}
+  .chip{border:1px solid var(--line);border-radius:999px;padding:5px 12px;
+        font-size:13px;cursor:pointer;user-select:none;color:var(--dim)}
+  .chip.on{background:rgba(59,130,246,.16);border-color:var(--accent);color:#bfdbfe}
+  .stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:12px}
+  .stat div{background:#0f1115;border-radius:8px;padding:11px 13px}
+  .stat b{display:block;font-size:19px;font-weight:600;margin-top:2px}
+  .stat span{color:var(--dim);font-size:12px}
+  .msg{margin-top:12px;padding:9px 12px;border-radius:6px;font-size:13px;display:none}
+  .msg.show{display:block}
+  .msg.ok{background:rgba(34,197,94,.12);color:#86efac}
+  .msg.err{background:rgba(239,68,68,.12);color:#fca5a5}
+  .hint{color:var(--dim);font-size:12px;margin-top:6px}
+  .found{font-size:13px;color:var(--dim)}
+  .found li{margin-bottom:4px}
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px}
+  .pill.on{background:rgba(34,197,94,.15);color:#86efac}
+  .pill.off{background:rgba(239,68,68,.15);color:#fca5a5}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>IDP 考位监控</h1>
+  <div class="sub">sign.idpielts.cn · 深圳福田机考</div>
+
+  <div class="card">
+    <h2>运行状态</h2>
+    <div class="stat" id="stat"></div>
+    <div class="hint" id="err" style="color:#fca5a5"></div>
+  </div>
+
+  <div class="card">
+    <h2>监控条件</h2>
+
+    <div class="row">
+      <label>开关</label>
+      <div class="chips">
+        <span class="chip" id="c-on">监控中</span>
+        <span class="chip" id="c-off">已停止</span>
+      </div>
+    </div>
+
+    <div class="row">
+      <label>考点</label>
+      <select id="center" style="flex:1">
+        <option value="22090ffd-27cd-4945-09c8-71f67fa5bcaf">IDP雅思深圳福田区考点</option>
+      </select>
+    </div>
+
+    <div class="row" style="align-items:flex-start">
+      <label style="padding-top:7px">日期</label>
+      <div style="flex:1">
+        <div class="chips" id="date-mode" style="margin-bottom:10px">
+          <span class="chip" id="dm-rolling">自动盯未来 N 天</span>
+          <span class="chip" id="dm-all">盯全部考期</span>
+          <span class="chip" id="dm-list">只盯指定日期</span>
+        </div>
+        <div id="rolling-row" class="row" style="margin-bottom:10px">
+          <input type="number" id="rolling-days" min="7" max="90" step="7" style="width:88px">
+          <span class="hint">天。窗口跟着今天自动往前滚，不需要手动重选。</span>
+          <span class="hint" id="rolling-hint" style="margin-left:8px"></span>
+        </div>
+        <div class="chips" id="dates"></div>
+        <div class="hint" id="date-hint">正在读取该考点真实考期…</div>
+      </div>
+    </div>
+
+    <div class="row">
+      <label>场次</label>
+      <div class="chips" id="times"></div>
+    </div>
+
+    <div class="row">
+      <label>轮询间隔</label>
+      <input type="number" id="interval" min="5" max="600" step="5">
+      <span class="hint">秒。接口实测可承受 1 秒一轮，30 秒已足够。</span>
+    </div>
+
+    <div class="row">
+      <label>夜间降频</label>
+      <div class="chips"><span class="chip" id="c-night">启用</span></div>
+      <input type="time" id="night-from">
+      <span style="color:var(--dim)">至</span>
+      <input type="time" id="night-to">
+      <input type="number" id="night-interval" min="30" max="3600" step="30" style="width:88px">
+      <span class="hint">秒/轮</span>
+    </div>
+
+    <div class="row">
+      <label>推送 Token</label>
+      <input type="text" id="token" placeholder="留空表示不修改">
+      <span class="hint" id="token-hint"></span>
+    </div>
+
+    <div class="row">
+      <label>心跳时间</label>
+      <input type="time" id="heartbeat">
+      <span class="hint">每天这个点发一条"监控活着"。</span>
+    </div>
+
+    <div class="row" style="margin-top:18px">
+      <label></label>
+      <button id="save">保存并生效</button>
+      <button class="ghost" id="test">测试推送</button>
+      <span class="hint" id="save-hint">保存即热加载，无需重启容器。</span>
+    </div>
+    <div class="msg" id="msg"></div>
+  </div>
+
+  <div class="card">
+    <h2>最近放位</h2>
+    <ul class="found" id="found"><li>暂无</li></ul>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let cfg = null, schedule = null, dirty = false;
+
+function toast(text, ok){
+  const m = $('msg');
+  m.textContent = text;
+  m.className = 'msg show ' + (ok ? 'ok' : 'err');
+  clearTimeout(m._t);
+  m._t = setTimeout(() => m.className = 'msg', 5000);
+}
+
+function renderDates(){
+  const box = $('dates');
+  box.innerHTML = '';
+  const mode = cfg.dates_mode || 'rolling';
+  $('dm-rolling').classList.toggle('on', mode === 'rolling');
+  $('dm-all').classList.toggle('on', mode === 'all');
+  $('dm-list').classList.toggle('on', mode === 'list');
+  $('rolling-row').style.display = mode === 'rolling' ? 'flex' : 'none';
+  $('rolling-days').value = cfg.rolling_days || 21;
+  box.style.opacity = mode === 'list' ? '1' : '.35';
+  box.style.pointerEvents = mode === 'list' ? 'auto' : 'none';
+  if (!schedule || !schedule.dates || !schedule.dates.length){
+    box.innerHTML = '<span class="hint">正在读取该考点真实考期…</span>';
+    return;
+  }
+  schedule.dates.forEach(iso => {
+    const d = new Date(iso + 'T00:00:00');
+    const el = document.createElement('span');
+    el.className = 'chip' + (cfg.dates.includes(iso) ? ' on' : '');
+    el.dataset.iso = iso;
+    el.textContent = iso.slice(5) + ' ' + '日一二三四五六'[d.getDay()];
+    el.onclick = () => { el.classList.toggle('on'); dirty = true; };
+    box.appendChild(el);
+  });
+}
+
+function renderTimes(){
+  const box = $('times');
+  box.innerHTML = '';
+  const list = (schedule && schedule.times) || [];
+  if (!list.length){
+    box.innerHTML = '<span class="hint">该考点当前没有可报场次</span>';
+    return;
+  }
+  list.forEach(t => {
+    const el = document.createElement('span');
+    el.className = 'chip' + (cfg.times.includes(t) ? ' on' : '');
+    el.dataset.t = t;
+    el.textContent = t;
+    el.onclick = () => { el.classList.toggle('on'); dirty = true; };
+    box.appendChild(el);
+  });
+}
+
+function render(){
+  $('center').value = cfg.center_id;
+  $('interval').value = cfg.interval_seconds;
+  $('night-from').value = cfg.night_pause.from;
+  $('night-to').value = cfg.night_pause.to;
+  $('night-interval').value = cfg.night_pause.interval_seconds;
+  $('heartbeat').value = cfg.push.heartbeat_time || '';
+  $('token-hint').textContent = cfg.push.token_set ? '已配置（留空则不修改）' : '尚未配置';
+  $('token').placeholder = cfg.push.token_set ? '已配置，留空则不修改' : '粘贴 token';
+  $('c-on').classList.toggle('on', !!cfg.enabled);
+  $('c-off').classList.toggle('on', !cfg.enabled);
+  $('c-night').classList.toggle('on', !!cfg.night_pause.enabled);
+  renderTimes();
+  renderDates();
+}
+
+async function loadSchedule(){
+  try{
+    const r = await fetch('/api/schedule');
+    const j = await r.json();
+    if (j.ok){
+      schedule = j;
+      renderTimes();
+      renderDates();
+      $('date-hint').textContent =
+        `该考点实际有排期 ${j.dates.length} 天（${j.dates[0]} ~ ${j.dates[j.dates.length-1]}）。` +
+        (cfg.dates_mode === 'rolling'
+          ? `当前盯未来 ${cfg.rolling_days} 天，窗口自动前滚。`
+          : `点选要盯的日期，一个都不选 = 盯全部。`);
+    }else{
+      $('date-hint').textContent = '读取考期失败: ' + j.error;
+    }
+  }catch(e){
+    $('date-hint').textContent = '读取考期失败: ' + e;
+  }
+}
+
+async function load(){
+  try{
+    const r = await fetch('/api/config');
+    cfg = await r.json();
+    render();
+  }catch(e){ toast('读取配置失败: ' + e, false); }
+}
+
+async function loadStatus(){
+  try{
+    const r = await fetch('/api/status');
+    const s = await r.json();
+    const ok = s.last_poll_ok;
+    $('stat').innerHTML = `
+      <div><span>数据面</span><b style="color:${ok===false?'#fca5a5':'#86efac'}">${ok===false?'异常':'正常'}</b></div>
+      <div><span>可报场次</span><b>${s.available_now}</b></div>
+      <div><span>监控场次</span><b>${s.sessions_total}</b></div>
+      <div><span>轮询次数</span><b>${s.polls_total}</b></div>
+      <div><span>失败次数</span><b style="color:${s.polls_failed?'#fca5a5':'inherit'}">${s.polls_failed}</b></div>
+      <div><span>已推送</span><b>${s.seats_pushed_total}</b></div>
+      <div><span>上次轮询</span><b style="font-size:13px">${(s.last_poll_at||'—').slice(11,19)}</b></div>
+      <div><span>模式</span><b style="font-size:13px">${s.poll_mode}</b></div>
+      <div><span>监控范围</span><b style="font-size:13px">${
+        s.config.dates_mode === 'rolling'
+          ? `未来${s.config.rolling_days}天`
+          : s.config.dates_mode === 'all' ? '全部考期' : `指定${s.config.dates.length}天`
+      }</b></div>
+      ${s.rolling_window ? `<div><span>当前窗口</span><b style="font-size:13px">${s.rolling_window.from.slice(5)} ~ ${s.rolling_window.to.slice(5)}</b></div>` : ''}`;
+    $('err').textContent = s.last_error ? '最近错误: ' + s.last_error : '';
+    const f = s.found_recent || [];
+    $('found').innerHTML = f.length
+      ? f.map(x => `<li>${x.at.slice(5,16).replace('T',' ')} · ${x.date} ${x.time} ${x.seat}</li>`).join('')
+      : '<li>暂无</li>';
+  }catch(e){}
+}
+
+function collect(){
+  const mode = $('dm-rolling').classList.contains('on') ? 'rolling'
+              : $('dm-all').classList.contains('on') ? 'all' : 'list';
+  const body = {
+    enabled: $('c-on').classList.contains('on'),
+    center_id: $('center').value,
+    dates_mode: mode,
+    rolling_days: +$('rolling-days').value || 21,
+    // list 模式才需要传具体日期
+    dates: mode === 'list'
+      ? [...document.querySelectorAll('#dates .chip.on')].map(e => e.dataset.iso).filter(Boolean)
+      : [],
+    times: [...document.querySelectorAll('#times .chip.on')].map(e => e.dataset.t),
+    interval_seconds: +$('interval').value,
+    jitter_seconds: cfg.jitter_seconds,
+    night_pause: {
+      enabled: $('c-night').classList.contains('on'),
+      from: $('night-from').value,
+      to: $('night-to').value,
+      interval_seconds: +$('night-interval').value,
+    },
+    push: {
+      provider: cfg.push.provider,
+      heartbeat_time: $('heartbeat').value,
+    },
+  };
+  const tok = $('token').value.trim();
+  if (tok) body.push.token = tok;
+  return body;
+}
+
+$('c-on').onclick = () => { $('c-on').classList.add('on'); $('c-off').classList.remove('on'); dirty = true; };
+$('c-off').onclick = () => { $('c-off').classList.add('on'); $('c-on').classList.remove('on'); dirty = true; };
+$('c-night').onclick = () => { $('c-night').classList.toggle('on'); dirty = true; };
+function pickMode(m){
+  $('dm-rolling').classList.toggle('on', m === 'rolling');
+  $('dm-all').classList.toggle('on', m === 'all');
+  $('dm-list').classList.toggle('on', m === 'list');
+  renderDates();
+  dirty = true;
+}
+$('dm-rolling').onclick = () => pickMode('rolling');
+$('dm-all').onclick = () => pickMode('all');
+$('dm-list').onclick = () => pickMode('list');
+$('rolling-days').oninput = () => { dirty = true; };
+
+$('save').onclick = async () => {
+  $('save').disabled = true;
+  try{
+    const r = await fetch('/api/config', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(collect()),
+    });
+    const j = await r.json();
+    if (j.ok){ toast('已保存，热加载生效', true); dirty = false; await load(); await loadStatus(); }
+    else toast('保存失败: ' + j.error, false);
+  }catch(e){ toast('保存失败: ' + e, false); }
+  $('save').disabled = false;
+};
+
+$('test').onclick = async () => {
+  $('test').disabled = true;
+  try{
+    const r = await fetch('/api/test-push', {method: 'POST'});
+    const j = await r.json();
+    toast(j.ok ? '测试推送已发出，请查收' : ('推送失败: ' + (j.error || '检查 token')), j.ok);
+  }catch(e){ toast('推送请求失败: ' + e, false); }
+  $('test').disabled = false;
+};
+
+load().then(loadSchedule).then(loadStatus);
+setInterval(loadStatus, 10000);
+</script>
+</body>
+</html>

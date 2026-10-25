@@ -26,5 +26,19 @@ services:
       ielts-ocr:
         condition: service_healthy
 
+  # 第二套数据源：IDP。与 NEEA 控制面完全独立，可以单独跑。
+  # NEEA 那套依赖真实 Chrome + 油猴（瑞数 WAF），IDP 是纯 HTTP 公开接口。
+  ielts-idp:
+    build: ./idp
+    image: ielts-idp:latest
+    container_name: ielts-idp
+    restart: unless-stopped
+    volumes:
+      - ./idp/config.yml:/app/config.yml   # cp idp/config.example.yml idp/config.yml 后改配置
+      - idp-data:/data                     # 去重与已发现考位状态持久化
+    ports:
+      - "127.0.0.1:9897:9897"              # 面板 / /api/status /api/schedule
+
 volumes:
   monitor-data:
+  idp-data:

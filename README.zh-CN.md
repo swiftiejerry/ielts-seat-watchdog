@@ -37,6 +37,27 @@ ielts.neea.cn 对一切非浏览器 HTTP 客户端返回 412，自动化浏览�
 
 效果：类 App 的省心体验，零云端、零第三方经手你的账号密码。
 
+## 第二套数据源：IDP（可选模块）
+
+如果你也盯 IDP 的考位，仓库里还有一套**完全独立**的监控（[`idp/`](idp/)）。它和上面那套不是同一个东西的两个副本，而是针对另一个考试系统另起的一套：
+
+| | NEEA（ielts.neea.cn） | IDP（sign.idpielts.cn） |
+|---|---|---|
+| 防护 | 瑞数动态 WAF，纯 HTTP 一律 412 | 无，裸 HTTP 直接 200 |
+| 登录 | 必须，还要过验证码 | 免登录、免验证码 |
+| 请求量 | 城市×日期逐个查 | 一次 POST 拿全量 |
+| 响应 | 明文 JSON | SM4-CBC 加密 |
+| 需要跑什么 | Chrome + 油猴 + OCR 容器 | 一个 Python 容器 |
+
+因为 IDP 没有瑞数那类请求级授权层，这套**不需要浏览器**，纯容器常驻即可，实测能承受 4 req/s 连续请求。判定"有位"用 `fullyBooked` 加上余量双重校验——两个条件都有实测依据，单用任何一个都会误报（详见 [`idp/README.md`](idp/README.md)）。
+
+注意 IDP 大陆目前只有机考，没有纸笔和 UKVI。要考纸笔的话这条路走不通。
+
+```bash
+cp idp/config.example.yml idp/config.yml   # 然后填考点与推送 token
+docker compose up -d ielts-idp             # 面板在 http://127.0.0.1:9897
+```
+
 ## 功能
 
 - **点选式配置面板** —— 34 个城市；"扫描真实考期"扫出未来 90 天真正有考试安排的日期；场次（09:00 / 14:00）与考点从真实响应里自动学习。日常使用不碰 YAML。
@@ -119,6 +140,7 @@ MONITOR_CONFIG=/path/to/config.yml MONITOR_DATA=/path/to/data python monitor/iel
 ```bash
 python tests/test_offline.py   # 28 项离线检查：考位解析、日期展开、
                                # 夜间窗口、推送构造、配置合并
+python -I idp/test_idp_offline.py   # 56 项：IDP 判定、去重、滚动窗口、配置校验
 ```
 
 ## 目录结构
@@ -128,7 +150,10 @@ userscript/ielts-seat-watchdog.user.js   眼睛 —— Tampermonkey worker 脚�
 monitor/ielts_monitor.py                 大脑 —— Flask 控制面
 monitor/ui.html                          Web 面板（单文件，无构建步骤）
 ocr_server.py + Dockerfile               ddddocr 验证码打码服务
-docker-compose.yml                       一条命令拉起三个组件
+idp/idp_monitor.py                       独立模块 —— IDP 考位监控
+idp/ui.html                              IDP 面板（三种日期模式）
+idp/test_idp_offline.py                  IDP 离线测试
+docker-compose.yml                       一条命令拉起全部组件
 tests/test_offline.py                    离线单元检查
 config.example.yml                       种子配置模板
 ```

@@ -10,6 +10,12 @@ seen.json
 found.json
 scan_cache.json
 
+# IDP 侧真实配置与状态
+idp/config.yml
+idp_state.json
+idp_found.json
+idp/*.pyc
+
 # Python
 venv/
 __pycache__/
@@ -18,3 +24,6 @@ __pycache__/
 # 系统
 .DS_Store
 Thumbs.db
+
+# 测试运行残留
+.test_*.json
