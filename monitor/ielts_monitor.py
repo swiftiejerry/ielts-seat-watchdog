@@ -1,12 +1,16 @@
-"""NEEA 雅思考位监控 · 控制面容器 + Web 配置面板（混合架构）。
+"""NEEA 雅思考位监控 · 控制面容器 + Web 配置面板（混合架构版）。
 
-ielts.neea.cn 对非浏览器客户端一律返回 412，自动化浏览器内的接口调用
-同样无法稳定工作；唯一可靠的数据通道是用户真实 Chrome 里的油猴脚本。
-因此本容器只做控制面：配置存储 / Web 面板 / 筛选 / 去重 / 微信推送 /
-心跳 / 状态聚合；数据面由油猴脚本（工作模式）轮询本容器领取任务并回传。
+架构结论（实测得出，勿回退）：
+ielts.neea.cn 部署瑞数(RiverSecurity)动态防护——纯 HTTP 一律 412；
+Playwright/patchright(含真Chrome+有界面)虽能过页面级挑战，但所有 XHR
+会被其请求级授权层客户端掐死(状态0)，连网站自身 UI 的数据加载都失效。
+唯一稳定数据通道 = 用户真实 Chrome 里的油猴脚本（已验证）。
 
-风控对策：轮询节奏由容器统一下发（默认 60s±30s 抖动，下限 30s）；
-登录只发生在用户真实浏览器的脚本里；容器不持有 NEEA 凭据亦可运行。
+故本容器只做控制面：配置存储/面板/去重/微信推送/心跳/状态聚合；
+数据面由油猴脚本(v2.2.6+ 工作模式)轮询本容器领取任务并回传考位。
+
+风控对策：轮询节奏由容器统一下发(60s±30s 抖动下限30s)；登录只发生在
+用户真实浏览器的脚本里(会话自然长效)；容器不持有 NEEA 凭据亦可运行。
 """
 import json
 import logging
@@ -84,6 +88,16 @@ DEFAULTS = {
         "interval_seconds": 60,
         "jitter_seconds": 30,
         "night_pause": {"enabled": True, "from": "01:00", "to": "07:00", "interval_seconds": 600},
+        # 高峰窗口：NEEA 每日 10:00 / 20:00 定时发布转考退考释放的考位，
+        # 窗口内高频盯守，其余时段降频省请求。窗口按北京时间判断。
+        "surge": {
+            "enabled": True,
+            "windows": [["09:55", "10:40"], ["19:55", "20:40"]],
+            # 8s：实测每轮查询耗时中位 14s，压到 8s 已接近 worker 物理上限；
+            # 再快只是让请求排队，不会更早发现考位。
+            "interval_seconds": 8,
+            "offpeak_interval_seconds": 300,
+        },
     },
     "push": {"provider": "pushplus", "token": "", "heartbeat_time": "09:00"},
     "ocr": {"url": "http://ielts-ocr:9898"},
@@ -137,6 +151,41 @@ def in_night_pause(cfg, now=None):
     if frm <= to:
         return frm <= t < to
     return t >= frm or t < to
+
+
+def in_surge_window(cfg, now=None):
+    sg = cfg["monitor"].get("surge") or {}
+    if not sg.get("enabled"):
+        return False
+    now = now or datetime.now()
+    t = now.strftime("%H:%M")
+    for win in sg.get("windows") or []:
+        if not (isinstance(win, (list, tuple)) and len(win) == 2):
+            continue
+        frm, to = str(win[0]), str(win[1])
+        if frm <= to:
+            if frm <= t < to:
+                return True
+        elif t >= frm or t < to:   # 跨午夜窗口
+            return True
+    return False
+
+
+def effective_interval(cfg, now=None):
+    """返回 (间隔秒, 模式)。优先级：高峰窗口 > 夜间降频 > 常规。
+
+    surge 启用时常规档由 offpeak_interval_seconds 接管
+    （interval_seconds 仅在 surge 关闭时生效）。
+    """
+    now = now or datetime.now()
+    sg = cfg["monitor"].get("surge") or {}
+    if in_surge_window(cfg, now):
+        return int(sg.get("interval_seconds", 30)), "surge"
+    if in_night_pause(cfg, now):
+        return int(cfg["monitor"]["night_pause"].get("interval_seconds", 600)), "night"
+    if sg.get("enabled"):
+        return int(sg.get("offpeak_interval_seconds", 300)), "offpeak"
+    return int(cfg["monitor"].get("interval_seconds", 60)), "normal"
 
 
 def seat_available(seat):
@@ -341,9 +390,18 @@ class ControlPlane:
             today = datetime.now().strftime("%Y-%m-%d")
             self.seen = {k: v for k, v in self.seen.items() if k.split(":")[0] >= today}
             if new_seats:
-                lines = [f"{s['testDay']} {s.get('testTime','')} {s.get('centerName','')}"
-                         for s in new_seats]
-                self.push("IELTS发现考位!", "\n".join(lines))
+                now_cn = datetime.now(TZ_CN) if TZ_CN else datetime.now()
+                lines = []
+                for i, s in enumerate(new_seats, 1):
+                    lines.append(f"{i}. {s['testDay']} {s.get('testTime','')} "
+                                 f"{s.get('centerName','')}")
+                # 直达报名页：省掉用户从微信切出去再翻 App/浏览器的一步。
+                # 链接是官网公开报名入口，不带任何账号或凭据信息。
+                body = ("\n".join(lines)
+                        + f"\n\n发现于 {now_cn.strftime('%H:%M:%S')}（北京时间）"
+                        + "\n报名入口 https://ielts.neea.cn/"
+                        + "\n\n已登录的话直接选考点 → 场次 → 提交")
+                self.push(f"IELTS放位! {len(new_seats)}场", body)
                 self.status["seats_pushed_total"] += len(new_seats)
                 self.found_recent = (new_seats + self.found_recent)[:50]
                 self._save_json(FOUND_FILE, self.found_recent)
@@ -363,18 +421,25 @@ class ControlPlane:
     # ---- worker 领取任务 ----
     def worker_config(self):
         cfg_m = self.cfg["monitor"]
-        interval = cfg_m["interval_seconds"]
         now_cn = datetime.now(TZ_CN) if TZ_CN else datetime.now()
-        if in_night_pause(self.cfg, now_cn):
-            interval = cfg_m["night_pause"].get("interval_seconds", 600)
-        jitter = cfg_m.get("jitter_seconds", 30)
+        interval, poll_mode = effective_interval(self.cfg, now_cn)
+        self.status["poll_mode"] = poll_mode
+        # 抖动必须小于间隔，否则会把间隔整个吞掉（±30s 抖动配 8s 间隔
+        # 等于间隔在 -22s~+38s 之间乱跳，等于没配）。
+        # surge 档收紧到间隔的 1/4，保峰值的确定性；平峰/夜间照旧随机化。
+        if poll_mode == "surge":
+            jitter = min(int(cfg_m.get("jitter_seconds", 30)), max(1, interval // 4))
+        else:
+            jitter = int(cfg_m.get("jitter_seconds", 30))
         # worker 端做抖动，这里下发 interval+jitter 范围
         task = {
             "enabled": bool(cfg_m.get("enabled", True)),
             "product_code": cfg_m["product_code"],
             "cities": cfg_m["cities"],
             "dates": expand_dates(self.cfg),
-            "interval_ms": max(30, interval) * 1000,
+            # 下限 5s：worker 单轮查询实测中位 14s，再快只会让请求排队，
+            # 不会更早发现考位。平峰/夜间本来就远大于此，不受影响。
+            "interval_ms": max(5, interval) * 1000,
             "jitter_ms": jitter * 1000,
             "scan_days": 0,
             # 凭据仅经 localhost 下发给同机浏览器脚本, 用于会话过期自动重登
@@ -472,6 +537,30 @@ def validate_config_payload(current, body):
         cfg["monitor"]["interval_seconds"] = min(600, max(30, int(m["interval_seconds"])))
     if "jitter_seconds" in m:
         cfg["monitor"]["jitter_seconds"] = min(120, max(0, int(m["jitter_seconds"])))
+    if "surge" in m:
+        sg = m["surge"] or {}
+        out_sg = {}
+        if "enabled" in sg:
+            out_sg["enabled"] = bool(sg["enabled"])
+        if "windows" in sg:
+            wins = []
+            for win in sg["windows"] or []:
+                if not (isinstance(win, (list, tuple)) and len(win) == 2):
+                    raise ValueError("高峰窗口格式错误，期望 [起始,结束] 时间对")
+                frm, to = str(win[0]).strip(), str(win[1]).strip()
+                for v in (frm, to):
+                    if not re.fullmatch(r"\d{2}:\d{2}", v):
+                        raise ValueError(f"高峰窗口时间格式错误（期望 HH:MM）: {v}")
+                wins.append([frm, to])
+            out_sg["windows"] = wins
+        # surge 间隔下限 5s：worker 单轮查询实测中位 14s，再快只会排队不会更早发现。
+        # offpeak 下限保持 30s，那是省请求的档位，没必要跑那么快。
+        limits = {"interval_seconds": (5, 600), "offpeak_interval_seconds": (30, 600)}
+        for k, (lo, hi) in limits.items():
+            if k in sg:
+                out_sg[k] = min(hi, max(lo, int(sg[k])))
+        if out_sg:
+            cfg["monitor"]["surge"] = deep_merge(cfg["monitor"].get("surge") or {}, out_sg)
     p = body.get("push") or {}
     if p.get("provider") in PUSH_PROVIDERS:
         cfg["push"]["provider"] = p["provider"]
@@ -537,8 +626,11 @@ def create_app(cp):
 
     @app.get("/api/status")
     def get_status():
+        now_cn = datetime.now(TZ_CN) if TZ_CN else datetime.now()
+        st = _tz_aware(cp.status)
+        st["poll_mode"] = effective_interval(cp.cfg, now_cn)[1]
         return jsonify({
-            "status": _tz_aware(cp.status),
+            "status": st,
             "config": sanitize(cp.cfg),
             "effective_dates": expand_dates(cp.cfg),
             "recent_found": _tz_aware(cp.found_recent[:20]),

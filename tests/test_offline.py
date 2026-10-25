@@ -6,13 +6,13 @@
 """
 import sys
 import os
-import re
 from datetime import datetime
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "monitor"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "monitor"))
+import ielts_monitor
 from ielts_monitor import (
     expand_dates, in_night_pause, parse_available_seats, build_push,
-    load_config, deep_merge, _tz_aware,
+    load_config, deep_merge, in_surge_window, effective_interval, DEFAULTS,
 )
 
 PASS = 0
@@ -114,15 +114,75 @@ url4, _, _, ok4 = build_push("wecom-hook", "K", "t", "m")
 check("企微 webhook 成功判定", ok4({"errcode": 0}, 200) and not ok4({"errcode": 93000}, 200))
 
 print("== 5. 配置默认值合并 ==")
-merged = deep_merge({"neea": {"user_id": "", "password": ""}}, {"neea": {"user_id": "10001234"}})
-check("覆盖保留共存", merged["neea"] == {"user_id": "10001234", "password": ""})
+merged = deep_merge({"neea": {"user_id": "", "password": ""}}, {"neea": {"user_id": "55532186"}})
+check("覆盖保留共存", merged["neea"] == {"user_id": "55532186", "password": ""})
 merged2 = deep_merge({"monitor": {"interval_seconds": 60}}, {"monitor": {"interval_seconds": 30}})
 check("标量覆盖", merged2["monitor"]["interval_seconds"] == 30)
 
+print("== 6. 高峰窗口策略（默认窗口 09:55-10:40 / 19:55-20:40） ==")
+D = lambda h, m: datetime(2026, 10, 25, h, m)
+CFG = deep_merge(DEFAULTS, {"monitor": {}})   # 生产配置必经 load_config 合并默认值
+check("10:10 在高峰窗口", in_surge_window(CFG, D(10, 10)))
+check("20:30 在晚高峰窗口", in_surge_window(CFG, D(20, 30)))
+check("09:55 边界含起点", in_surge_window(CFG, D(9, 55)))
+check("10:40 边界不含终点", not in_surge_window(CFG, D(10, 40)))
+check("19:54 不在窗口", not in_surge_window(CFG, D(19, 54)))
+check("surge 关闭恒不在", not in_surge_window({"monitor": {"surge": {"enabled": False}}}, D(10, 10)))
+cross = {"monitor": {"surge": {"enabled": True, "windows": [["23:50", "00:10"]]}}}
+check("跨午夜 23:55 命中", in_surge_window(cross, D(23, 55)))
+check("跨午夜 00:05 命中", in_surge_window(cross, D(0, 5)))
+check("跨午夜 12:00 不命中", not in_surge_window(cross, D(12, 0)))
+bad = {"monitor": {"surge": {"enabled": True, "windows": [["09:00"], "bad", ["08:00", "11:00"]]}}}
+check("畸形窗口跳过后仍可用", in_surge_window(bad, D(8, 30)))
 
-out = _tz_aware({"worker_last_seen": "2026-01-01T00:00:00", "x": [{"at": "2026-01-01T00:00:00"}]})
-check("naive时间串补本地时区偏移", re.search(r"[+-]\d{2}:\d{2}$", out["worker_last_seen"])
-      and re.search(r"[+-]\d{2}:\d{2}$", out["x"][0]["at"]))
-check("非时间字段原样保留", _tz_aware({"d": "2026-11-11"})["d"] == "2026-11-11")
+iv, mode = effective_interval(CFG, D(10, 10))
+check("高峰时段 8s/surge", (iv, mode) == (8, "surge"))
+iv, mode = effective_interval(CFG, D(14, 0))
+check("平峰时段 300s/offpeak", (iv, mode) == (300, "offpeak"))
+iv, mode = effective_interval(CFG, D(2, 0))
+check("夜间 600s/night", (iv, mode) == (600, "night"))
+iv, mode = effective_interval(deep_merge(CFG, {"monitor": {"surge": {"enabled": False}}}), D(14, 0))
+check("surge 关闭回落 60s/normal", (iv, mode) == (60, "normal"))
+iv, mode = effective_interval(deep_merge(CFG, {"monitor": {"surge": {"interval_seconds": 45, "offpeak_interval_seconds": 240}}}), D(19, 56))
+check("自定义间隔生效", (iv, mode) == (45, "surge"))
+iv, mode = effective_interval(deep_merge(CFG, {"monitor": {"surge": {"windows": [["01:30", "03:00"]]}}}), D(2, 0))
+check("高峰优先于夜间", mode == "surge")
+
+# ---- 抖动必须小于间隔，否则间隔会被整个吞掉 ----
+# 注意 ControlPlane 构造时会读状态文件，这里指向不存在的路径走默认值
+_orig_state = ielts_monitor.SEEN_FILE
+ielts_monitor.SEEN_FILE = os.path.join(os.path.dirname(__file__), ".nonexistent.json")
+
+cp = ielts_monitor.ControlPlane(deep_merge(CFG, {"monitor": {"jitter_seconds": 30}}))
+_orig_now = ielts_monitor.datetime
+
+
+def _fake_at(hour, minute):
+    class _FakeDT:
+        @staticmethod
+        def now(tz=None):
+            return _orig_now(2026, 10, 25, hour, minute, 0, tzinfo=tz)
+    return _FakeDT
+
+
+# 高峰时刻（10:10 落在 09:55-10:40 窗口内）
+ielts_monitor.datetime = _fake_at(10, 10)
+try:
+    task = cp.worker_config()
+finally:
+    ielts_monitor.datetime = _orig_now
+check("surge 间隔下发 8s", task["interval_ms"] == 8000)
+check("surge 抖动被钳到间隔 1/4", task["jitter_ms"] == 2000)
+
+# 平峰时刻（14:00 不在任何窗口内）抖动保持原样
+ielts_monitor.datetime = _fake_at(14, 0)
+try:
+    task2 = cp.worker_config()
+finally:
+    ielts_monitor.datetime = _orig_now
+ielts_monitor.SEEN_FILE = _orig_state
+check("平峰间隔下发 300s", task2["interval_ms"] == 300000)
+check("平峰抖动保持 30s", task2["jitter_ms"] == 30000)
+
 print(f"\n结果: {PASS} 通过, {FAIL} 失败")
 sys.exit(1 if FAIL else 0)

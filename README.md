@@ -63,7 +63,7 @@ docker compose up -d ielts-idp             # panel at http://127.0.0.1:9897
 - **Tap-to-configure panel** — 34 cities, real exam dates discovered by a 90-day scan, sessions (09:00 / 14:00) and centers auto-populated from live responses. No YAML editing for daily use.
 - **Multi-city × multi-date × session/center filters** — e.g. Shenzhen + 13 dates + both sessions + 2 preferred centers, all from checkboxes.
 - **WeChat push in seconds** — pushplus, ServerChan, Bark, WeCom webhook, DingTalk, Feishu or any custom HTTP endpoint. Duplicate seats are suppressed for 24 h.
-- **Conservative polling** — 60 s ± 30 s random jitter (30 s floor enforced by the control plane), night pause 01:00–07:00 slows to 10 min, login failures capped at 3 before a 30 min cooldown. Read-only endpoint only; registration is never automated.
+- **Conservative polling** — 300 s off-peak, night pause 01:00–07:00 slows to 10 min, and the release windows (09:55–10:40 / 19:55–20:40) tighten to 8 s ± 2 s. Login failures capped at 3 before a 30 min cooldown. Read-only endpoint only; registration is never automated.
 - **Survives reboots** — containers `restart: unless-stopped`; reopening the NEEA tab resumes polling and re-login automatically. Multi-tab lock keeps exactly one worker per browser.
 - **Daily heartbeat** — one push at 09:00 proves the pipeline is alive; the panel flags "data source offline" if the worker stops reporting for 5 minutes.
 
@@ -114,7 +114,7 @@ Daily changes belong in the web panel; `config.yml` only seeds the first run.
 | `monitor.cities` | `["440300"]` | city codes from the panel (440300 = Shenzhen) |
 | `monitor.dates` | `[]` | `YYYY-MM-DD` list; the panel's 7/14/30-day buttons fill this |
 | `monitor.center_keywords` / `session_keywords` | empty | substring filters; empty = accept all |
-| `monitor.interval_seconds` / `jitter_seconds` | 60 / 30 | polling cadence; control plane enforces ≥ 30 s |
+| `monitor.interval_seconds` / `jitter_seconds` | 60 / 30 | off-peak cadence; surge windows override this to 8 s ± 2 s |
 | `monitor.night_pause` | 01:00–07:00 → 600 s | off-hours slow-down |
 | `push.provider` / `push.token` | pushplus / empty | see channels below |
 | `push.heartbeat_time` | `09:00` | daily "still alive" push |
@@ -124,7 +124,7 @@ Push channels: `pushplus`, `serverchan`, `bark`, `wecom-hook`, `dingtalk`, `feis
 ## Fair-use & risk notes
 
 - The worker only calls the **read-only** seat query endpoint, at a randomized human-like cadence far below what a person clicking around would produce. It never automates registration or payment.
-- Keep the defaults. The control plane refuses intervals under 30 s on purpose.
+- Keep the defaults. The control plane enforces a 5 s floor, and caps jitter below the interval so the cadence cannot be swallowed by randomness.
 - This is a personal-use tool. You are responsible for complying with the site's terms of service. Not affiliated with NEEA or the British Council.
 
 ## Tests

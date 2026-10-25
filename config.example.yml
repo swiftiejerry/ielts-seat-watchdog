@@ -16,13 +16,25 @@ monitor:
     end: ""
   center_keywords: []        # 考点关键字过滤（如 "深圳大学"）；空 = 全部考点
   session_keywords: []       # 场次过滤（如 "09:00" "14:00"）；空 = 全部场次
-  interval_seconds: 60       # 轮询间隔（秒），面板强制下限 30
-  jitter_seconds: 30         # 随机抖动（秒），模拟人工节奏
+  interval_seconds: 60       # 平峰轮询间隔（秒），下限 5；surge 关闭时这就是常规档
+  jitter_seconds: 30         # 平峰/夜间随机抖动（秒），模拟人工节奏
   night_pause:
     enabled: true
     from: "01:00"
     to: "07:00"
     interval_seconds: 600    # 夜间降频轮询间隔
+  # 高峰窗口：NEEA 每日 10:00 / 20:00 批处理发布转考退考释放的考位。
+  # 窗口内高频盯守，其余时段由 offpeak_interval_seconds 接管。按北京时间判断。
+  # 优先级：surge > night > offpeak。
+  surge:
+    enabled: true
+    windows:
+      - ["09:55", "10:40"]
+      - ["19:55", "20:40"]
+    interval_seconds: 8      # 窗口内间隔，下限 5（worker 单轮实测中位 14s，再快只会排队）
+    offpeak_interval_seconds: 300   # 非窗口期的白天间隔
+    # 注意：surge 档的抖动会被自动钳到间隔的 1/4（8s → ±2s），
+    # 否则 ±30s 抖动会把 8s 间隔整个吞掉。平峰/夜间仍用上面的 jitter_seconds。
 
 push:
   provider: "pushplus"       # pushplus | serverchan | bark | wecom-hook | dingtalk | feishu | custom

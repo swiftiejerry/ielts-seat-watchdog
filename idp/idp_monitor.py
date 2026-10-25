@@ -317,10 +317,16 @@ class IdpMonitor:
         self.seen = {k: v for k, v in self.seen.items() if (v.get("date") or "") >= today}
 
     def _announce(self, fresh, now):
-        lines = [f"{r['examTimeOrigin']} {r['time']} {seat_label(r)}" for r in fresh]
+        lines = []
+        for i, r in enumerate(fresh, 1):
+            lines.append(f"{i}. {r['examTimeOrigin']} {r['time']} {seat_label(r)}")
+        # 直达报名页 + 发现时刻，省掉用户从微信切出去再翻入口的一步。
+        # 链接是官网公开报名入口，不带任何账号或凭据信息。
         title = f"IDP放位! {len(fresh)}场"
-        body = f"{self.cfg['center_name']}\n" + "\n".join(lines) + \
-               f"\n\n发现于 {now.strftime('%H:%M:%S')}"
+        body = (f"{self.cfg['center_name']}\n" + "\n".join(lines)
+                + f"\n\n发现于 {now.strftime('%H:%M:%S')}（北京时间）"
+                + "\n报名入口 https://www.idpielts.cn/"
+                + "\n\n已登录的话直接选考点 → 场次 → 提交")
         self.push(title, body)
         self.status["seats_pushed_total"] += len(fresh)
         self.found = ([{"at": now.isoformat(timespec="seconds"),
