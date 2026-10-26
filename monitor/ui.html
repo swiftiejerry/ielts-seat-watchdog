@@ -275,11 +275,15 @@ function renderCenters(){
 }
 const MODE_TEXT = {idle:"待配置", stopped:"已停止", monitoring:"监控中", paused:"熔断暂停",
   credentials_error:"账号有误", worker_offline:"数据源离线"};
+const POLL_MODE_TEXT = {surge:"高峰窗口", night:"夜间降频", offpeak:"常规巡查", normal:"常规巡查"};
 function renderStatus(j){
   const st = j.status;
   $("dot").className = "dot" + (st.mode==="monitoring" ? " on" : (st.mode==="paused"||st.mode==="worker_offline") ? " warn" :
     st.mode==="credentials_error" ? " err" : "");
   $("modeText").textContent = MODE_TEXT[st.mode] || st.mode;
+  if(st.mode==="monitoring" && st.poll_mode)
+    $("modeText").textContent += " · " + (POLL_MODE_TEXT[st.poll_mode] || st.poll_mode);
+  $("modeText").style.color = st.poll_mode==="surge" ? "var(--grn)" : "";
   $("swEnabled").checked = !!(j.config.monitor.enabled);
   // 数据源状态
   if(st.worker_last_seen){

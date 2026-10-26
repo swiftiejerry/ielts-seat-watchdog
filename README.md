@@ -62,7 +62,7 @@ docker compose up -d ielts-idp             # panel at http://127.0.0.1:9897
 
 - **Tap-to-configure panel** — 34 cities, real exam dates discovered by a 90-day scan, sessions (09:00 / 14:00) and centers auto-populated from live responses. No YAML editing for daily use.
 - **Multi-city × multi-date × session/center filters** — e.g. Shenzhen + 13 dates + both sessions + 2 preferred centers, all from checkboxes.
-- **WeChat push in seconds** — pushplus, ServerChan, Bark, WeCom webhook, DingTalk, Feishu or any custom HTTP endpoint. Duplicate seats are suppressed for 24 h.
+- **WeChat push in seconds** — pushplus, ServerChan, Bark, WeCom webhook, DingTalk, Feishu or any custom HTTP endpoint. Each seat is announced once — no repeated notifications.
 - **Conservative polling** — 300 s off-peak, night pause 01:00–07:00 slows to 10 min, and the release windows (09:55–10:40 / 19:55–20:40) tighten to 8 s ± 2 s. Login failures capped at 3 before a 30 min cooldown. Read-only endpoint only; registration is never automated.
 - **Survives reboots** — containers `restart: unless-stopped`; reopening the NEEA tab resumes polling and re-login automatically. Multi-tab lock keeps exactly one worker per browser.
 - **Daily heartbeat** — one push at 09:00 proves the pipeline is alive; the panel flags "data source offline" if the worker stops reporting for 5 minutes.
